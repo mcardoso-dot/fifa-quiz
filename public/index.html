@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloudflare Tax Team • FIFA World Cup Quiz</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
+            background: linear-gradient(135deg, #f38020 0%, #f6821f 25%, #ff6633 50%, #f38020 75%, #f6821f 100%);
+            background-size: 400% 400%;
+            animation: gradient-shift 15s ease infinite;
+            min-height: 100vh;
+            padding: 30px 20px;
+            color: #1a202c;
+        }
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2.2fr 1fr;
+            gap: 25px;
+        }
+        .quiz-panel, .leaderboard-panel {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+            padding: 45px;
+            border-top: 5px solid #f38020;
+            position: relative;
+            overflow: hidden;
+        }
+        .quiz-panel::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -10%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(243, 128, 32, 0.03) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 35px; 
+            padding-bottom: 25px;
+            border-bottom: 2px solid #e2e8f0;
+            position: relative;
+            z-index: 1;
+        }
+        .header h1 { 
+            font-size: 2.3em; 
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .header .subtitle {
+            font-size: 0.95em;
+            color: #718096;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .cf-badge {
+            display: inline-block;
+            background: #f38020;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 8px;
+        }
+        .join-screen input {
+            width: 100%;
+            padding: 16px 20px;
+            font-size: 1.05em;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            margin-bottom: 18px;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+        .join-screen input:focus {
+            outline: none;
+            border-color: #f38020;
+            box-shadow: 0 0 0 4px rgba(243, 128, 32, 0.15);
+        }
+        .btn {
+            background: linear-gradient(135deg, #f38020 0%, #ff6633 100%);
+            color: white;
+            border: none;
+            padding: 16px 40px;
+            border-radius: 10px;
+            font-size: 1.05em;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 6px 20px rgba(243, 128, 32, 0.35);
+            position: relative;
+            overflow: hidden;
+        }
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s ease;
+        }
+        .btn:hover::before {
+            left: 100%;
+        }
+        .btn:hover { 
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(243, 128, 32, 0.45);
+        }
+        .btn:disabled { 
+            opacity: 0.5; 
+            cursor: not-allowed;
+            transform: none;
+        }
+        .question-counter {
+            text-align: center;
+            color: #f38020;
+            font-size: 0.9em;
+            margin-bottom: 25px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+        .question {
+            font-size: 1.35em;
+            color: #2d3748;
+            margin-bottom: 30px;
+            line-height: 1.6;
+            font-weight: 600;
+        }
+        .options { 
+            display: grid; 
+            gap: 14px; 
+            margin-bottom: 25px; 
+        }
+        .option {
+            background: #faf9f8;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 18px 22px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            font-size: 1.05em;
+            font-weight: 500;
+            color: #4a5568;
+            position: relative;
+        }
+        .option::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 4px;
+            background: #f38020;
+            border-radius: 12px 0 0 12px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .option:hover { 
+            background: #f7fafc; 
+            border-color: #cbd5e0; 
+            transform: translateX(6px);
+        }
+        .option:hover::before {
+            opacity: 1;
+        }
+        .option.selected { 
+            background: #edf2f7; 
+            color: #2d3748; 
+            border-color: #4a5568;
+            font-weight: 600;
+        }
+        .option.selected::before {
+            opacity: 1;
+        }
+        .option.correct { 
+            background: #f0fdf4; 
+            color: #166534; 
+            border-color: #22c55e;
+            font-weight: 600;
+            animation: correct-pulse 0.5s ease;
+        }
+        @keyframes correct-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        .option.incorrect { 
+            background: #fef2f2; 
+            color: #991b1b; 
+            border-color: #ef4444;
+            font-weight: 600;
+            animation: shake 0.5s ease;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .option.disabled { 
+            cursor: not-allowed; 
+            opacity: 0.7; 
+        }
+        .feedback {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-left: 5px solid #f38020;
+            padding: 20px 22px;
+            margin: 25px 0;
+            border-radius: 10px;
+            font-size: 0.98em;
+            color: #2d3748;
+            line-height: 1.6;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .feedback strong {
+            color: #1a202c;
+            font-size: 1.1em;
+        }
+        .leaderboard h2 { 
+            background: linear-gradient(135deg, #f38020 0%, #ff6633 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 25px; 
+            font-size: 1.4em;
+            font-weight: 700;
+            text-align: center;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f38020;
+        }
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 16px 18px;
+            margin-bottom: 10px;
+            background: #fafafa;
+            border-radius: 10px;
+            align-items: center;
+            border: 2px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .leaderboard-item:hover {
+            border-color: #f38020;
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(243, 128, 32, 0.15);
+        }
+        .leaderboard-item.top { 
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-color: #f59e0b;
+            box-shadow: 0 6px 16px rgba(245, 158, 11, 0.3);
+            animation: winner-glow 2s ease-in-out infinite;
+        }
+        @keyframes winner-glow {
+            0%, 100% { box-shadow: 0 6px 16px rgba(245, 158, 11, 0.3); }
+            50% { box-shadow: 0 8px 24px rgba(245, 158, 11, 0.5); }
+        }
+        .rank { 
+            font-size: 1.4em; 
+            font-weight: 700; 
+            margin-right: 15px;
+            color: #f38020;
+            min-width: 35px;
+        }
+        .leaderboard-item.top .rank {
+            color: #92400e;
+            font-size: 1.6em;
+        }
+        .player-name { 
+            flex-grow: 1; 
+            font-weight: 600;
+            color: #4a5568;
+        }
+        .leaderboard-item.top .player-name {
+            color: #78350f;
+            font-weight: 700;
+        }
+        .score { 
+            font-size: 1.25em; 
+            font-weight: 700; 
+            color: #f38020;
+            min-width: 40px;
+            text-align: right;
+        }
+        .leaderboard-item.top .score {
+            color: #92400e;
+            font-size: 1.4em;
+        }
+        .waiting { 
+            text-align: center; 
+            padding: 50px 20px; 
+            color: #718096; 
+        }
+        .waiting h2 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.6em;
+        }
+        .waiting .loading-dots {
+            display: inline-block;
+            margin-top: 20px;
+        }
+        .waiting .loading-dots span {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background: #f38020;
+            border-radius: 50%;
+            margin: 0 4px;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .waiting .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .waiting .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        .host-controls { 
+            margin-top: 22px;
+            padding-top: 20px;
+            border-top: 2px solid #f38020;
+        }
+        .host-controls label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: #4a5568;
+            cursor: pointer;
+        }
+        .host-controls input[type="checkbox"] {
+            margin-right: 10px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #f38020;
+        }
+        .results-screen {
+            text-align: center;
+            padding: 20px;
+        }
+        .results-screen h2 {
+            color: #2d3748;
+            margin: 25px 0;
+            font-size: 2em;
+        }
+        .results-score {
+            font-size: 4em;
+            color: #f38020;
+            font-weight: 800;
+            margin: 30px 0;
+            animation: scale-in 0.6s ease;
+        }
+        @keyframes scale-in {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .results-rank {
+            font-size: 1.3em;
+            color: #718096;
+            margin-bottom: 30px;
+            font-weight: 600;
+        }
+        .trophy-icon {
+            font-size: 5em;
+            margin-bottom: 20px;
+            animation: trophy-bounce 1s ease infinite;
+        }
+        @keyframes trophy-bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+        @media (max-width: 1024px) {
+            .container { 
+                grid-template-columns: 1fr;
+            }
+            .header h1 {
+                font-size: 1.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="quiz-panel">
+            <div class="header">
+                <h1>⚽ FIFA World Cup Quiz</h1>
+                <div class="cf-badge">🧡 Cloudflare Tax Team</div>
+                <div class="subtitle">Tax • Football • Tech</div>
+            </div>
+            <div id="quiz-content"></div>
+        </div>
+        <div class="leaderboard-panel">
+            <div class="leaderboard">
+                <h2>🏆 CF Tax Team Champions</h2>
+                <div id="leaderboard-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let playerName = '';
+        let currentQuestion = null;
+        let selectedAnswer = null;
+        let answered = false;
+        let isHost = false;
+
+        function showJoinScreen() {
+            document.getElementById('quiz-content').innerHTML = '<div class="join-screen"><h2 style="text-align: center; margin-bottom: 25px; color: #f38020; font-weight: 700; font-size: 1.5em;">Ready to Play? 🎯</h2><input type="text" id="playerNameInput" placeholder="Enter your name" maxlength="30"><button class="btn" onclick="joinGame()">Join the Game 🚀</button><div class="host-controls"><label><input type="checkbox" id="hostCheckbox"> I\'m the Quiz Master</label></div></div>';
+        }
+
+        function joinGame() {
+            playerName = document.getElementById('playerNameInput').value.trim();
+            isHost = document.getElementById('hostCheckbox').checked;
+            if (playerName) {
+                socket.emit('join', playerName);
+                showWaitingScreen();
+            }
+        }
+
+        function showWaitingScreen() {
+            const hostButton = isHost ? '<button class="btn" onclick="startGame()" style="margin-top: 25px;">🎮 Start the Quiz!</button>' : '';
+            document.getElementById('quiz-content').innerHTML = '<div class="waiting"><h2>🎪 Getting Ready...</h2><p style="margin-top: 20px; font-weight: 600; font-size: 1.1em;">Waiting for players to join</p><p style="margin-top: 10px; font-size: 0.95em; color: #a0aec0;">Check out the leaderboard →</p><div class="loading-dots"><span></span><span></span><span></span></div>' + hostButton + '</div>';
+        }
+
+        function startGame() {
+            socket.emit('startGame');
+        }
+
+        function showQuestion(data) {
+            answered = false;
+            selectedAnswer = null;
+            currentQuestion = data.question;
+            
+            const optionsHtml = currentQuestion.options.map((option, index) => '<div class="option" onclick="selectAnswer(' + index + ')">' + option + '</div>').join('');
+            const nextBtn = isHost ? '<button class="btn" onclick="nextQuestion()" id="nextBtn" style="display:none; margin-top: 15px;">⏭️ Next Question</button>' : '';
+            
+            document.getElementById('quiz-content').innerHTML = '<div class="question-counter">📊 Question ' + (data.currentQuestion + 1) + ' of ' + data.totalQuestions + '</div><div class="question">' + currentQuestion.question + '</div><div class="options">' + optionsHtml + '</div><div id="feedback"></div>' + nextBtn;
+        }
+
+        function selectAnswer(index) {
+            if (answered) return;
+            selectedAnswer = index;
+            answered = true;
+            socket.emit('submitAnswer', index);
+            
+            const options = document.querySelectorAll('.option');
+            options.forEach((opt, i) => {
+                opt.classList.add('disabled');
+                if (i === index) opt.classList.add('selected');
+            });
+        }
+
+        function nextQuestion() {
+            socket.emit('nextQuestion');
+        }
+
+        function updateLeaderboard(leaderboard) {
+            const content = leaderboard.map(player => '<div class="leaderboard-item ' + (player.rank === 1 ? 'top' : '') + '"><span class="rank">' + (player.rank === 1 ? '👑' : '#' + player.rank) + '</span><span class="player-name">' + player.name + '</span><span class="score">' + player.score + ' pts</span></div>').join('');
+            document.getElementById('leaderboard-content').innerHTML = content || '<p style="text-align: center; color: #a0aec0; padding: 20px;">No players yet...</p>';
+        }
+
+        function showResults(leaderboard) {
+            const myScore = leaderboard.find(p => p.name === playerName);
+            const totalQuestions = 41;
+            const medal = myScore && myScore.rank === 1 ? '🥇' : myScore && myScore.rank === 2 ? '🥈' : myScore && myScore.rank === 3 ? '🥉' : '🏆';
+            const playAgain = isHost ? '<button class="btn" onclick="startGame()" style="margin-top: 20px;">🔄 Play Again!</button>' : '';
+            document.getElementById('quiz-content').innerHTML = '<div class="results-screen"><div class="trophy-icon">' + medal + '</div><h2>Quiz Complete!</h2><div class="results-score">' + (myScore ? myScore.score : 0) + ' / ' + totalQuestions + '</div><div class="results-rank">You ranked <strong>#' + (myScore ? myScore.rank : '-') + '</strong> out of ' + leaderboard.length + ' players!</div><p style="color: #718096; margin-bottom: 20px;">Great job, CF Tax Champion! 🎉</p>' + playAgain + '</div>';
+        }
+
+        socket.on('playerJoined', (data) => {
+            document.querySelector('.leaderboard h2').textContent = '🏆 CF Tax Team Champions (' + data.totalPlayers + ')';
+        });
+
+        socket.on('gameStarted', (data) => {
+            showQuestion(data);
+        });
+
+        socket.on('nextQuestion', (data) => {
+            showQuestion(data);
+        });
+
+        socket.on('answerResult', (data) => {
+            const options = document.querySelectorAll('.option');
+            options.forEach((opt, i) => {
+                if (i === data.correctAnswer) opt.classList.add('correct');
+                if (i === selectedAnswer && i !== data.correctAnswer) opt.classList.add('incorrect');
+            });
+            
+            const emoji = data.correct ? '✅' : '❌';
+            document.getElementById('feedback').innerHTML = '<div class="feedback">' + emoji + ' <strong>' + (data.correct ? 'Correct!' : 'Not quite!') + '</strong><br>' + data.feedback + '</div>';
+            
+            if (isHost) {
+                const nextBtn = document.getElementById('nextBtn');
+                if (nextBtn) nextBtn.style.display = 'block';
+            }
+        });
+
+        socket.on('leaderboard', (leaderboard) => {
+            updateLeaderboard(leaderboard);
+        });
+
+        socket.on('gameEnded', (data) => {
+            showResults(data.leaderboard);
+            updateLeaderboard(data.leaderboard);
+        });
+
+        showJoinScreen();
+    </script>
+</body>
+</html>
